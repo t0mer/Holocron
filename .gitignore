@@ -25,3 +25,43 @@ replay_pid*
 
 # Kotlin Gradle plugin data, see https://kotlinlang.org/docs/whatsnew20.html#new-directory-for-kotlin-data-in-gradle-projects
 .kotlin/
+
+# Claude / AI assistant context — local only, never track
+CLAUDE.md
+.claude/
+.cursor/
+.aider*
+
+# Design / implementation / planning docs — local only
+/docs/
+docs/*
+*.design.md
+*.implementation.md
+
+# Android / Gradle build output
+.gradle/
+build/
+/build/
+app/build/
+local.properties
+captures/
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Signing material — never commit
+*.jks
+*.keystore
+*.jks.base64
+keystore.properties
+
+# IDE / OS
+.idea/
+.vscode/
+*.iml
+*.swp
+.DS_Store
+
+# Keep the Gradle wrapper jar tracked despite the *.jar rule above
+!gradle/wrapper/gradle-wrapper.jar
