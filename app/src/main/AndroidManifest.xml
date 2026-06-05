@@ -5,6 +5,11 @@
     <!-- Intercept incoming SMS via broadcast. READ_SMS/SEND_SMS are intentionally NOT requested. -->
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
 
+    <!-- SMS needs telephony, but don't hard-require it (keeps the app installable elsewhere). -->
+    <uses-feature
+        android:name="android.hardware.telephony"
+        android:required="false" />
+
     <!-- Forwarding destinations -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
