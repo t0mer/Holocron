@@ -4,13 +4,13 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.foundation.layout.padding
@@ -24,6 +24,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import dev.tomerklein.holocron.ui.about.AboutScreen
 import dev.tomerklein.holocron.ui.destinations.DestinationEditScreen
 import dev.tomerklein.holocron.ui.destinations.DestinationsScreen
 import dev.tomerklein.holocron.ui.home.HomeScreen
@@ -39,6 +40,7 @@ enum class Tab(val route: String, val label: String, val icon: ImageVector) {
     Destinations("destinations", "Destinations", Icons.AutoMirrored.Filled.Send),
     DeliveryLog("log", "Log", Icons.AutoMirrored.Filled.List),
     Settings("settings", "Settings", Icons.Filled.Settings),
+    About("about", "About", Icons.Filled.Info),
 }
 
 private object Routes {
@@ -72,7 +74,6 @@ fun HolocronApp() {
                                 }
                             },
                             icon = { Icon(tab.icon, contentDescription = tab.label) },
-                            label = { Text(tab.label) },
                         )
                     }
                 }
@@ -114,6 +115,7 @@ fun HolocronApp() {
 
             composable(Tab.DeliveryLog.route) { DeliveryLogScreen() }
             composable(Tab.Settings.route) { SettingsScreen() }
+            composable(Tab.About.route) { AboutScreen() }
         }
     }
 }

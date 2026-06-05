@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Error
@@ -26,10 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import dev.tomerklein.holocron.data.DeliveryLog
 import dev.tomerklein.holocron.data.DeliveryStatus
 import dev.tomerklein.holocron.ui.components.openAppSettings
 import dev.tomerklein.holocron.ui.components.rememberPermissionRequester
@@ -53,7 +50,7 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
         item {
             Text("Holocron", style = MaterialTheme.typography.headlineMedium)
             Text(
-                "Forwarding incoming SMS to your home lab",
+                "SMS forwarding for automation",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -119,20 +116,6 @@ fun HomeScreen(viewModel: HomeViewModel = hiltViewModel()) {
                 CountCard("Destinations", state.destinationCount, Modifier.weight(1f))
             }
         }
-
-        item { Text("Recent activity", style = MaterialTheme.typography.titleMedium) }
-
-        if (state.recent.isEmpty()) {
-            item {
-                Text(
-                    "No deliveries yet.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        } else {
-            items(state.recent, key = { it.id }) { RecentRow(it) }
-        }
     }
 }
 
@@ -157,31 +140,6 @@ private fun CountCard(label: String, count: Int, modifier: Modifier = Modifier) 
         Column(Modifier.padding(16.dp)) {
             Text("$count", style = MaterialTheme.typography.headlineMedium)
             Text(label, style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-}
-
-@Composable
-private fun RecentRow(log: DeliveryLog) {
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text(log.sender, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    formatTime(log.timestamp),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Text(
-                log.status.name,
-                style = MaterialTheme.typography.labelMedium,
-                color = statusColor(log.status),
-            )
         }
     }
 }

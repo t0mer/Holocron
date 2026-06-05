@@ -88,8 +88,13 @@ class SettingsViewModel @Inject constructor(
                 }
                 val bundle = json.decodeFromString(ConfigBackup.serializer(), text)
                 applyBundle(bundle)
-            }.onSuccess { message.value = "Imported ${it} rule(s). Re-enter secrets in each destination." }
-                .onFailure { message.value = "Import failed: ${it.message}" }
+            }.onSuccess { r ->
+                message.value = buildString {
+                    append("Imported ${r.newRules} rule(s), ${r.newDestinations} destination(s).")
+                    if (r.skipped > 0) append(" Skipped ${r.skipped} already present.")
+                    if (r.newDestinations > 0) append(" Re-enter secrets in new destinations.")
+                }
+            }.onFailure { message.value = "Import failed: ${it.message}" }
         }
     }
 
@@ -116,37 +121,63 @@ class SettingsViewModel @Inject constructor(
         )
     }
 
-    /** Inserts the backup, remapping destination ids; returns the number of rules imported. */
-    private suspend fun applyBundle(bundle: ConfigBackup): Int {
-        val refToNewId = HashMap<Long, Long>()
+    data class ImportResult(val newDestinations: Int, val newRules: Int, val skipped: Int)
+
+    /**
+     * Inserts the backup, skipping items that already exist so re-importing the same file is
+     * idempotent (no duplicates). A destination is "the same" by name + type; a rule by
+     * name + sender pattern + match type + (resolved) destination. Existing destinations are
+     * reused for remapping rather than re-created.
+     */
+    private suspend fun applyBundle(bundle: ConfigBackup): ImportResult {
+        val existingDestinations = repository.observeDestinations().first()
+        val existingRules = repository.observeRules().first()
+
+        var newDestinations = 0
+        var skipped = 0
+        val refToId = HashMap<Long, Long>()
         for (d in bundle.destinations) {
-            val newId = repository.upsertDestination(
-                Destination(
-                    name = d.name,
-                    type = runCatching { DestinationType.valueOf(d.type) }.getOrDefault(DestinationType.WEBHOOK),
-                    config = d.config,
-                    enabled = true,
-                ),
-            )
-            refToNewId[d.refId] = newId
+            val type = runCatching { DestinationType.valueOf(d.type) }.getOrDefault(DestinationType.WEBHOOK)
+            val existing = existingDestinations.firstOrNull { it.name == d.name && it.type == type }
+            if (existing != null) {
+                refToId[d.refId] = existing.id
+                skipped++
+            } else {
+                refToId[d.refId] = repository.upsertDestination(
+                    Destination(name = d.name, type = type, config = d.config, enabled = true),
+                )
+                newDestinations++
+            }
         }
-        var imported = 0
+
+        var newRules = 0
         val now = System.currentTimeMillis()
         for (r in bundle.rules) {
-            val destId = refToNewId[r.destinationRefId] ?: continue
+            val destId = refToId[r.destinationRefId] ?: continue
+            val matchType = runCatching { MatchType.valueOf(r.matchType) }.getOrDefault(MatchType.EXACT)
+            val isDuplicate = existingRules.any {
+                it.name == r.name &&
+                    it.senderPattern == r.senderPattern &&
+                    it.matchType == matchType &&
+                    it.destinationId == destId
+            }
+            if (isDuplicate) {
+                skipped++
+                continue
+            }
             repository.upsertRule(
                 Rule(
                     name = r.name,
                     senderPattern = r.senderPattern,
-                    matchType = runCatching { MatchType.valueOf(r.matchType) }.getOrDefault(MatchType.EXACT),
+                    matchType = matchType,
                     destinationId = destId,
                     enabled = r.enabled,
                     createdAt = now,
                     updatedAt = now,
                 ),
             )
-            imported++
+            newRules++
         }
-        return imported
+        return ImportResult(newDestinations = newDestinations, newRules = newRules, skipped = skipped)
     }
 }

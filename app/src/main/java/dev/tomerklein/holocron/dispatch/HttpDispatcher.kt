@@ -1,8 +1,10 @@
 package dev.tomerklein.holocron.dispatch
 
+import android.util.Base64
 import dev.tomerklein.holocron.data.Destination
 import dev.tomerklein.holocron.data.SecurePrefs
 import dev.tomerklein.holocron.data.config.ApiConfig
+import dev.tomerklein.holocron.data.config.AuthType
 import dev.tomerklein.holocron.data.config.DestinationJson
 import dev.tomerklein.holocron.data.config.WebhookConfig
 import kotlinx.coroutines.Dispatchers
@@ -65,7 +67,7 @@ class WebhookDispatcher @Inject constructor(
         val body = cfg.bodyTemplate?.takeIf { it.isNotBlank() }
             ?.let { PayloadTemplate.render(it, message, message.ruleName) }
             ?: PayloadTemplate.defaultJsonEnvelope(message, message.ruleName)
-        return http.send(cfg.url, cfg.method, securePrefs.getHeaders(destination.id), body)
+        return http.send(cfg.url, cfg.method, headersFor(securePrefs, destination.id, cfg.authType), body)
     }
 }
 
@@ -79,6 +81,42 @@ class ApiDispatcher @Inject constructor(
         val body = cfg.bodyTemplate?.takeIf { it.isNotBlank() }
             ?.let { PayloadTemplate.render(it, message, message.ruleName) }
             ?: PayloadTemplate.defaultJsonEnvelope(message, message.ruleName)
-        return http.send(cfg.url, cfg.method, securePrefs.getHeaders(destination.id), body)
+        return http.send(cfg.url, cfg.method, headersFor(securePrefs, destination.id, cfg.authType), body)
+    }
+}
+
+/** SecurePrefs field keys for HTTP auth credentials, keyed per destination id. */
+object HttpAuth {
+    const val FIELD_USERNAME = "auth_username"
+    const val FIELD_PASSWORD = "auth_password"
+    const val FIELD_TOKEN = "auth_token"
+    const val FIELD_CF_ID = "cf_access_client_id"
+    const val FIELD_CF_SECRET = "cf_access_client_secret"
+}
+
+/** Custom headers merged with auth headers; auth headers win on key conflict. */
+private fun headersFor(securePrefs: SecurePrefs, destinationId: Long, authType: AuthType): Map<String, String> =
+    securePrefs.getHeaders(destinationId) + authHeaders(securePrefs, destinationId, authType)
+
+private fun authHeaders(securePrefs: SecurePrefs, destinationId: Long, authType: AuthType): Map<String, String> {
+    fun secret(field: String) = securePrefs.getSecret(destinationId, field)?.takeIf { it.isNotBlank() }
+    return when (authType) {
+        AuthType.NONE -> emptyMap()
+        AuthType.BASIC -> {
+            val user = secret(HttpAuth.FIELD_USERNAME) ?: ""
+            val pass = secret(HttpAuth.FIELD_PASSWORD) ?: ""
+            if (user.isEmpty() && pass.isEmpty()) {
+                emptyMap()
+            } else {
+                val token = Base64.encodeToString("$user:$pass".toByteArray(), Base64.NO_WRAP)
+                mapOf("Authorization" to "Basic $token")
+            }
+        }
+        AuthType.TOKEN -> secret(HttpAuth.FIELD_TOKEN)
+            ?.let { mapOf("Authorization" to "Bearer $it") } ?: emptyMap()
+        AuthType.CLOUDFLARE -> buildMap {
+            secret(HttpAuth.FIELD_CF_ID)?.let { put("CF-Access-Client-Id", it) }
+            secret(HttpAuth.FIELD_CF_SECRET)?.let { put("CF-Access-Client-Secret", it) }
+        }
     }
 }

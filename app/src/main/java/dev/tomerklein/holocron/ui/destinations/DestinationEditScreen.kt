@@ -20,6 +20,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.tomerklein.holocron.data.DestinationType
+import dev.tomerklein.holocron.data.config.AuthType
 import dev.tomerklein.holocron.ui.components.DropdownField
 import dev.tomerklein.holocron.ui.components.EditScaffold
 
@@ -95,10 +96,20 @@ private fun HttpFields(form: DestinationForm, viewModel: DestinationEditViewMode
         optionLabel = { it },
         onSelect = { v -> viewModel.update { it.copy(method = v) } },
     )
+
+    DropdownField(
+        label = "Authentication",
+        selected = form.authType,
+        options = AuthType.entries,
+        optionLabel = { authLabel(it) },
+        onSelect = { v -> viewModel.update { it.copy(authType = v) } },
+    )
+    AuthFields(form, viewModel)
+
     OutlinedTextField(
         value = form.headersText,
         onValueChange = { v -> viewModel.update { it.copy(headersText = v) } },
-        label = { Text("Headers (one per line: Key: Value)") },
+        label = { Text("Custom headers (one per line: Key: Value)") },
         modifier = Modifier.fillMaxWidth(),
     )
     OutlinedTextField(
@@ -108,6 +119,69 @@ private fun HttpFields(form: DestinationForm, viewModel: DestinationEditViewMode
         placeholder = { Text("{{sender}} {{body}} {{timestamp}} {{ruleName}}") },
         modifier = Modifier.fillMaxWidth(),
     )
+}
+
+private fun authLabel(type: AuthType): String = when (type) {
+    AuthType.NONE -> "None"
+    AuthType.BASIC -> "Basic Auth"
+    AuthType.TOKEN -> "Token (Bearer)"
+    AuthType.CLOUDFLARE -> "Cloudflare Service Token"
+}
+
+@Composable
+private fun AuthFields(form: DestinationForm, viewModel: DestinationEditViewModel) {
+    when (form.authType) {
+        AuthType.NONE -> Unit
+        AuthType.BASIC -> {
+            OutlinedTextField(
+                value = form.authUsername,
+                onValueChange = { v -> viewModel.update { it.copy(authUsername = v) } },
+                label = { Text("Username") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = form.authPassword,
+                onValueChange = { v -> viewModel.update { it.copy(authPassword = v) } },
+                label = { Text("Password") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+        AuthType.TOKEN -> {
+            OutlinedTextField(
+                value = form.authToken,
+                onValueChange = { v -> viewModel.update { it.copy(authToken = v) } },
+                label = { Text("Token") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                "Sent as: Authorization: Bearer <token>",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        AuthType.CLOUDFLARE -> {
+            OutlinedTextField(
+                value = form.cfClientId,
+                onValueChange = { v -> viewModel.update { it.copy(cfClientId = v) } },
+                label = { Text("CF-Access-Client-Id") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = form.cfClientSecret,
+                onValueChange = { v -> viewModel.update { it.copy(cfClientSecret = v) } },
+                label = { Text("CF-Access-Client-Secret") },
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
+    }
 }
 
 @Composable
