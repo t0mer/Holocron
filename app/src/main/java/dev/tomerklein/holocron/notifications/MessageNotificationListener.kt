@@ -1,9 +1,11 @@
 package dev.tomerklein.holocron.notifications
 
 import android.app.Notification
+import android.net.Uri
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import androidx.core.app.NotificationCompat
+import androidx.core.app.Person
 import dagger.hilt.android.AndroidEntryPoint
 import dev.tomerklein.holocron.ingest.IncomingMessageRouter
 import dev.tomerklein.holocron.util.Logx
@@ -61,7 +63,7 @@ class MessageNotificationListener : NotificationListenerService() {
             .extractMessagingStyleFromNotification(notification)
         if (style != null) {
             val last = style.messages.lastOrNull() ?: return null
-            val sender = last.person?.name?.toString()
+            val sender = senderFrom(last.person)
                 ?: style.conversationTitle?.toString()
                 ?: notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()
                 ?: return null
@@ -76,6 +78,21 @@ class MessageNotificationListener : NotificationListenerService() {
         val title = notification.extras.getCharSequence(Notification.EXTRA_TITLE)?.toString() ?: return null
         val text = notification.extras.getCharSequence(Notification.EXTRA_TEXT)?.toString() ?: return null
         return title to text
+    }
+
+    /**
+     * Resolve the sender. Prefer the [Person]'s `tel:` URI (when the messaging app attaches it)
+     * so RCS resolves to the actual phone number and matches the same number-based rules as SMS;
+     * otherwise fall back to the display name (use CONTAINS/REGEX rules for those).
+     */
+    private fun senderFrom(person: Person?): String? {
+        person ?: return null
+        val uri = person.uri
+        if (uri != null && uri.startsWith("tel:")) {
+            val number = Uri.decode(uri.removePrefix("tel:")).trim()
+            if (number.isNotEmpty()) return number
+        }
+        return person.name?.toString()
     }
 
     private companion object {
