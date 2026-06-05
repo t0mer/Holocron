@@ -9,11 +9,14 @@ val DestinationJson: Json = Json {
     encodeDefaults = true
 }
 
+// Custom HTTP headers (which may carry auth tokens) are NOT stored here — they live
+// encrypted in SecurePrefs, keyed by destination id. These configs hold only non-secret
+// structural fields.
+
 @Serializable
 data class WebhookConfig(
     val url: String = "",
     val method: String = "POST",
-    val headers: Map<String, String> = emptyMap(),
     /** Optional body template; null/blank uses the default JSON envelope. */
     val bodyTemplate: String? = null,
 )
@@ -22,7 +25,6 @@ data class WebhookConfig(
 data class ApiConfig(
     val url: String = "",
     val method: String = "POST",
-    val headers: Map<String, String> = emptyMap(),
     val bodyTemplate: String? = null,
 )
 
