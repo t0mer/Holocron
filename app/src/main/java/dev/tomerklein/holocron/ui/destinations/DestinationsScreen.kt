@@ -42,13 +42,13 @@ fun DestinationsScreen(
     viewModel: DestinationsViewModel = hiltViewModel(),
 ) {
     val destinations by viewModel.destinations.collectAsState()
-    val testMessage by viewModel.testMessage.collectAsState()
+    val message by viewModel.message.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(testMessage) {
-        testMessage?.let {
+    LaunchedEffect(message) {
+        message?.let {
             snackbarHostState.showSnackbar(it)
-            viewModel.consumeTestMessage()
+            viewModel.consumeMessage()
         }
     }
 

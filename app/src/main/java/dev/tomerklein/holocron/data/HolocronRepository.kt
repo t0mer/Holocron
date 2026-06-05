@@ -22,6 +22,8 @@ class HolocronRepository @Inject constructor(
 
     suspend fun upsertRule(rule: Rule): Long = ruleDao.upsert(rule)
     suspend fun deleteRule(rule: Rule) = ruleDao.delete(rule)
+    suspend fun ruleCountForDestination(destinationId: Long): Int =
+        ruleDao.countForDestination(destinationId)
     suspend fun upsertDestination(d: Destination): Long = destinationDao.upsert(d)
     suspend fun deleteDestination(d: Destination) = destinationDao.delete(d)
 

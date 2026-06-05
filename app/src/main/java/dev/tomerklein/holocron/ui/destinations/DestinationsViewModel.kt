@@ -26,25 +26,32 @@ class DestinationsViewModel @Inject constructor(
         repository.observeDestinations()
             .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    /** Transient toast-style message about the last test result. */
-    val testMessage = MutableStateFlow<String?>(null)
+    /** Transient toast-style message (test results, blocked deletes, etc.). */
+    val message = MutableStateFlow<String?>(null)
 
     fun test(destination: Destination) {
         viewModelScope.launch {
-            testMessage.value = "Testing ${destination.name}…"
-            testMessage.value = describe(destination.name, testSender.sendTest(destination))
+            message.value = "Testing ${destination.name}…"
+            message.value = describe(destination.name, testSender.sendTest(destination))
         }
     }
 
     fun delete(destination: Destination) {
         viewModelScope.launch {
+            val inUse = repository.ruleCountForDestination(destination.id)
+            if (inUse > 0) {
+                message.value =
+                    "Can't delete \"${destination.name}\": ${inUse} rule(s) use it. Reassign or delete those rules first."
+                return@launch
+            }
             repository.deleteDestination(destination)
             securePrefs.clearSecrets(destination.id)
+            message.value = "Deleted \"${destination.name}\""
         }
     }
 
-    fun consumeTestMessage() {
-        testMessage.value = null
+    fun consumeMessage() {
+        message.value = null
     }
 
     private fun describe(name: String, result: DispatchResult): String = when (result) {
