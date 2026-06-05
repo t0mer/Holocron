@@ -6,10 +6,8 @@ import android.content.Intent
 import android.provider.Telephony
 import android.telephony.TelephonyManager
 import dagger.hilt.android.EntryPointAccessors
-import dev.tomerklein.holocron.dispatch.DispatchEnqueuer
-import dev.tomerklein.holocron.dispatch.IncomingMessage
 import dev.tomerklein.holocron.di.SmsReceiverEntryPoint
-import dev.tomerklein.holocron.rules.NumberMatcher
+import dev.tomerklein.holocron.ingest.IncomingMessageRouter
 import dev.tomerklein.holocron.util.Logx
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -17,9 +15,9 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
 /**
- * Receives `SMS_RECEIVED`, reassembles multipart messages, matches enabled rules by sender,
- * and enqueues a WorkManager dispatch per match. Does **no** network I/O here: it uses
- * [goAsync] for the brief DB read + enqueue, then returns.
+ * Receives `SMS_RECEIVED`, reassembles multipart messages, and hands each off to the shared
+ * [IncomingMessageRouter] (which matches rules and enqueues forwards). Does **no** network I/O
+ * here: it uses [goAsync] for the brief work, then returns.
  */
 class SmsReceiver : BroadcastReceiver() {
 
@@ -35,30 +33,21 @@ class SmsReceiver : BroadcastReceiver() {
         if (messages.isEmpty()) return
 
         val region = deviceRegion(context)
-        val ep = EntryPointAccessors.fromApplication(
-            context.applicationContext,
-            SmsReceiverEntryPoint::class.java,
-        )
-        val repository = ep.repository()
-        val matcher: NumberMatcher = ep.matcher()
-        val enqueuer: DispatchEnqueuer = ep.enqueuer()
+        val router = EntryPointAccessors
+            .fromApplication(context.applicationContext, SmsReceiverEntryPoint::class.java)
+            .router()
 
         val pending = goAsync()
         scope.launch {
             try {
-                val rules = repository.enabledRules()
                 for (msg in messages) {
-                    Logx.body(TAG, "incoming from ${msg.sender}", msg.body)
-                    val incoming = IncomingMessage(
+                    router.route(
                         sender = msg.sender,
                         body = msg.body,
                         timestamp = msg.timestampMillis,
-                        defaultRegion = region,
+                        region = region,
+                        source = IncomingMessageRouter.Source.SMS,
                     )
-                    val matched = rules.filter { matcher.matches(it, msg.sender, region) }
-                    for (rule in matched) {
-                        enqueuer.enqueue(incoming, rule)
-                    }
                 }
             } catch (t: Throwable) {
                 Logx.e(TAG, "Failed handling incoming SMS", t)
