@@ -28,3 +28,10 @@
 # --- libphonenumber bundles its metadata as resources; keep them ---
 -keep class com.google.i18n.phonenumbers.** { *; }
 -dontwarn com.google.i18n.phonenumbers.**
+
+# --- Tink (via androidx.security:security-crypto / EncryptedSharedPreferences):
+#     references compile-only Error Prone annotations not present at runtime ---
+-dontwarn com.google.errorprone.annotations.**
+
+# --- Netty/HiveMQ optionally references BlockHound (a test-time agent) ---
+-dontwarn reactor.blockhound.integration.**
