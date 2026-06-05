@@ -57,6 +57,14 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsStore.setRedactBodies(redact) }
     }
 
+    fun setDebugLogging(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setDebugLogging(enabled) }
+    }
+
+    fun setRcsForwarding(enabled: Boolean) {
+        viewModelScope.launch { settingsStore.setRcsForwardingEnabled(enabled) }
+    }
+
     fun exportTo(uri: Uri) {
         viewModelScope.launch {
             runCatching {

@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -27,16 +28,21 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import dev.tomerklein.holocron.BuildConfig
+import dev.tomerklein.holocron.ui.components.openNotificationAccessSettings
+import dev.tomerklein.holocron.ui.components.rememberNotificationAccess
 
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     val settings by viewModel.settings.collectAsState()
     val message by viewModel.message.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    val notificationAccess = rememberNotificationAccess()
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
@@ -76,6 +82,35 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
 
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Message sources", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "SMS is always captured. RCS/chat messages aren't SMS, so they're read from " +
+                            "your messaging app's notifications (requires Notification access). Note: RCS " +
+                            "senders show as the contact name, so use CONTAINS/REGEX rules for them.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    ToggleRow(
+                        title = "Forward RCS messages",
+                        subtitle = if (notificationAccess) {
+                            "Notification access granted"
+                        } else {
+                            "Needs Notification access — grant it below"
+                        },
+                        checked = settings.rcsForwardingEnabled,
+                        onChange = viewModel::setRcsForwarding,
+                    )
+                    if (settings.rcsForwardingEnabled && !notificationAccess) {
+                        Button(
+                            onClick = { openNotificationAccessSettings(context) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text("Grant notification access") }
+                    }
+                }
+            }
+
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Privacy & logging", style = MaterialTheme.typography.titleMedium)
                     ToggleRow(
                         title = "Redact message bodies",
@@ -90,6 +125,19 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("Debug", style = MaterialTheme.typography.titleMedium)
+                    ToggleRow(
+                        title = "Debug logging",
+                        subtitle = "Log every incoming SMS (sender and full body) to logcat, " +
+                            "including messages that match no rule. Sensitive — leave off unless troubleshooting.",
+                        checked = settings.debugLogging,
+                        onChange = viewModel::setDebugLogging,
                     )
                 }
             }
