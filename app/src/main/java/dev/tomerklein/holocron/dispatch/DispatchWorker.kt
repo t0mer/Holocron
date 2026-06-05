@@ -8,6 +8,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import dev.tomerklein.holocron.data.DeliveryStatus
 import dev.tomerklein.holocron.data.HolocronRepository
+import dev.tomerklein.holocron.data.SecurePrefs
 import dev.tomerklein.holocron.util.Logx
 
 /**
@@ -20,6 +21,7 @@ class DispatchWorker @AssistedInject constructor(
     @Assisted params: WorkerParameters,
     private val repository: HolocronRepository,
     private val registry: DispatcherRegistry,
+    private val securePrefs: SecurePrefs,
 ) : CoroutineWorker(appContext, params) {
 
     override suspend fun doWork(): Result {
@@ -30,14 +32,21 @@ class DispatchWorker @AssistedInject constructor(
 
         val destination = repository.destination(destinationId)
         if (destination == null || !destination.enabled) {
-            finish(logId, DeliveryStatus.FAILED, attempt, "Destination missing/disabled")
+            terminate(logId, DeliveryStatus.FAILED, attempt, "Destination missing/disabled")
+            return Result.failure()
+        }
+
+        // Body is stored encrypted (keyed by log id), never in WorkManager's plaintext input.
+        val body = if (logId != -1L) securePrefs.getPendingBody(logId) else null
+        if (body == null) {
+            terminate(logId, DeliveryStatus.FAILED, attempt, "Message body unavailable")
             return Result.failure()
         }
 
         val ruleName = repository.rule(ruleId)?.name.orEmpty()
         val message = IncomingMessage(
             sender = inputData.getString(KEY_SENDER).orEmpty(),
-            body = inputData.getString(KEY_BODY).orEmpty(),
+            body = body,
             timestamp = inputData.getLong(KEY_TIMESTAMP, System.currentTimeMillis()),
             defaultRegion = inputData.getString(KEY_REGION),
             ruleName = ruleName,
@@ -49,28 +58,40 @@ class DispatchWorker @AssistedInject constructor(
 
         return when (val result = registry.forType(destination.type).send(message, destination)) {
             is DispatchResult.Success -> {
-                finish(logId, DeliveryStatus.SUCCESS, attempt, null)
+                terminate(logId, DeliveryStatus.SUCCESS, attempt, null, clearBody = true)
                 Result.success()
             }
             is DispatchResult.Retryable -> {
                 Logx.w(TAG, "Retryable dispatch failure (attempt $attempt): ${result.reason}")
                 if (attempt >= MAX_ATTEMPTS) {
-                    finish(logId, DeliveryStatus.FAILED, attempt, "Gave up: ${result.reason}")
+                    // Keep the encrypted body so the user can retry manually from the log.
+                    setStatus(logId, DeliveryStatus.FAILED, attempt, "Gave up: ${result.reason}")
                     Result.failure()
                 } else {
-                    finish(logId, DeliveryStatus.RETRYING, attempt, result.reason)
+                    setStatus(logId, DeliveryStatus.RETRYING, attempt, result.reason)
                     Result.retry()
                 }
             }
             is DispatchResult.Permanent -> {
-                finish(logId, DeliveryStatus.FAILED, attempt, result.reason)
+                terminate(logId, DeliveryStatus.FAILED, attempt, result.reason, clearBody = true)
                 Result.failure()
             }
         }
     }
 
-    private suspend fun finish(logId: Long, status: DeliveryStatus, attempt: Int, error: String?) {
+    private suspend fun setStatus(logId: Long, status: DeliveryStatus, attempt: Int, error: String?) {
         if (logId != -1L) repository.updateLogStatus(logId, status, attempt, error)
+    }
+
+    private suspend fun terminate(
+        logId: Long,
+        status: DeliveryStatus,
+        attempt: Int,
+        error: String?,
+        clearBody: Boolean = false,
+    ) {
+        setStatus(logId, status, attempt, error)
+        if (clearBody && logId != -1L) securePrefs.clearPendingBody(logId)
     }
 
     companion object {
@@ -78,7 +99,6 @@ class DispatchWorker @AssistedInject constructor(
         const val KEY_RULE_ID = "ruleId"
         const val KEY_DESTINATION_ID = "destinationId"
         const val KEY_SENDER = "sender"
-        const val KEY_BODY = "body"
         const val KEY_TIMESTAMP = "timestamp"
         const val KEY_REGION = "region"
 

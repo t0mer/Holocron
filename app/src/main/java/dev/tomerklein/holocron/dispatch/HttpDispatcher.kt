@@ -1,6 +1,7 @@
 package dev.tomerklein.holocron.dispatch
 
 import dev.tomerklein.holocron.data.Destination
+import dev.tomerklein.holocron.data.SecurePrefs
 import dev.tomerklein.holocron.data.config.ApiConfig
 import dev.tomerklein.holocron.data.config.DestinationJson
 import dev.tomerklein.holocron.data.config.WebhookConfig
@@ -57,25 +58,27 @@ class HttpSender @Inject constructor(
 @Singleton
 class WebhookDispatcher @Inject constructor(
     private val http: HttpSender,
+    private val securePrefs: SecurePrefs,
 ) : Dispatcher {
     override suspend fun send(message: IncomingMessage, destination: Destination): DispatchResult {
         val cfg = DestinationJson.decodeFromString(WebhookConfig.serializer(), destination.config)
         val body = cfg.bodyTemplate?.takeIf { it.isNotBlank() }
             ?.let { PayloadTemplate.render(it, message, message.ruleName) }
             ?: PayloadTemplate.defaultJsonEnvelope(message, message.ruleName)
-        return http.send(cfg.url, cfg.method, cfg.headers, body)
+        return http.send(cfg.url, cfg.method, securePrefs.getHeaders(destination.id), body)
     }
 }
 
 @Singleton
 class ApiDispatcher @Inject constructor(
     private val http: HttpSender,
+    private val securePrefs: SecurePrefs,
 ) : Dispatcher {
     override suspend fun send(message: IncomingMessage, destination: Destination): DispatchResult {
         val cfg = DestinationJson.decodeFromString(ApiConfig.serializer(), destination.config)
         val body = cfg.bodyTemplate?.takeIf { it.isNotBlank() }
             ?.let { PayloadTemplate.render(it, message, message.ruleName) }
             ?: PayloadTemplate.defaultJsonEnvelope(message, message.ruleName)
-        return http.send(cfg.url, cfg.method, cfg.headers, body)
+        return http.send(cfg.url, cfg.method, securePrefs.getHeaders(destination.id), body)
     }
 }
