@@ -20,6 +20,8 @@ data class AppSettings(
     val foregroundServiceEnabled: Boolean = false,
     val logRetention: Int = DEFAULT_RETENTION,
     val redactBodies: Boolean = true,
+    val debugLogging: Boolean = false,
+    val rcsForwardingEnabled: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_RETENTION = 200
@@ -35,6 +37,8 @@ class SettingsStore @Inject constructor(
             foregroundServiceEnabled = prefs[KEY_FG_SERVICE] ?: false,
             logRetention = prefs[KEY_RETENTION] ?: AppSettings.DEFAULT_RETENTION,
             redactBodies = prefs[KEY_REDACT] ?: true,
+            debugLogging = prefs[KEY_DEBUG_LOG] ?: false,
+            rcsForwardingEnabled = prefs[KEY_RCS] ?: false,
         )
     }
 
@@ -47,9 +51,17 @@ class SettingsStore @Inject constructor(
     suspend fun setRedactBodies(redact: Boolean) =
         context.dataStore.edit { it[KEY_REDACT] = redact }.let { }
 
+    suspend fun setDebugLogging(enabled: Boolean) =
+        context.dataStore.edit { it[KEY_DEBUG_LOG] = enabled }.let { }
+
+    suspend fun setRcsForwardingEnabled(enabled: Boolean) =
+        context.dataStore.edit { it[KEY_RCS] = enabled }.let { }
+
     private companion object {
         val KEY_FG_SERVICE = booleanPreferencesKey("foreground_service_enabled")
         val KEY_RETENTION = intPreferencesKey("log_retention")
         val KEY_REDACT = booleanPreferencesKey("redact_bodies")
+        val KEY_DEBUG_LOG = booleanPreferencesKey("debug_logging")
+        val KEY_RCS = booleanPreferencesKey("rcs_forwarding_enabled")
     }
 }
