@@ -17,6 +17,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -94,4 +95,29 @@ fun openAppSettings(context: Context) {
         data = Uri.parse("package:${context.packageName}")
     }
     runCatching { context.startActivity(intent) }
+}
+
+/** Whether this app currently holds Notification access (required for RCS capture). */
+fun isNotificationAccessGranted(context: Context): Boolean =
+    NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
+
+/** Opens the system "Notification access" settings screen. */
+fun openNotificationAccessSettings(context: Context) {
+    runCatching { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+}
+
+/** Tracks Notification-access state, re-reading on ON_RESUME (e.g. returning from Settings). */
+@Composable
+fun rememberNotificationAccess(): Boolean {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var granted by remember { mutableStateOf(isNotificationAccessGranted(context)) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) granted = isNotificationAccessGranted(context)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    return granted
 }

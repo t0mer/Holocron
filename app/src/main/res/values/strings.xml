@@ -5,4 +5,5 @@
     <string name="listening_channel_desc">Persistent notification while Holocron forwards incoming SMS.</string>
     <string name="listening_notification_title">Holocron is listening</string>
     <string name="listening_notification_text">Forwarding incoming SMS to your home lab.</string>
+    <string name="notification_listener_label">Holocron RCS capture</string>
 </resources>
