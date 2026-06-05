@@ -9,9 +9,12 @@ val DestinationJson: Json = Json {
     encodeDefaults = true
 }
 
-// Custom HTTP headers (which may carry auth tokens) are NOT stored here — they live
-// encrypted in SecurePrefs, keyed by destination id. These configs hold only non-secret
-// structural fields.
+// Custom HTTP headers and auth credentials (which may carry secrets) are NOT stored here —
+// they live encrypted in SecurePrefs, keyed by destination id. These configs hold only
+// non-secret structural fields, including the chosen auth *scheme* (but not its secrets).
+
+/** Authentication scheme applied to an HTTP (webhook/API) request. */
+enum class AuthType { NONE, BASIC, TOKEN, CLOUDFLARE }
 
 @Serializable
 data class WebhookConfig(
@@ -19,6 +22,7 @@ data class WebhookConfig(
     val method: String = "POST",
     /** Optional body template; null/blank uses the default JSON envelope. */
     val bodyTemplate: String? = null,
+    val authType: AuthType = AuthType.NONE,
 )
 
 @Serializable
@@ -26,6 +30,7 @@ data class ApiConfig(
     val url: String = "",
     val method: String = "POST",
     val bodyTemplate: String? = null,
+    val authType: AuthType = AuthType.NONE,
 )
 
 @Serializable

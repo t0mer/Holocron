@@ -9,10 +9,12 @@ import dev.tomerklein.holocron.data.DestinationType
 import dev.tomerklein.holocron.data.HolocronRepository
 import dev.tomerklein.holocron.data.SecurePrefs
 import dev.tomerklein.holocron.data.config.ApiConfig
+import dev.tomerklein.holocron.data.config.AuthType
 import dev.tomerklein.holocron.data.config.DestinationJson
 import dev.tomerklein.holocron.data.config.MqttConfig
 import dev.tomerklein.holocron.data.config.WebhookConfig
 import dev.tomerklein.holocron.dispatch.DispatchResult
+import dev.tomerklein.holocron.dispatch.HttpAuth
 import dev.tomerklein.holocron.dispatch.MqttDispatcher
 import dev.tomerklein.holocron.dispatch.TestSender
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +33,12 @@ data class DestinationForm(
     val method: String = "POST",
     val bodyTemplate: String = "",
     val headersText: String = "",
+    val authType: AuthType = AuthType.NONE,
+    val authUsername: String = "",
+    val authPassword: String = "",
+    val authToken: String = "",
+    val cfClientId: String = "",
+    val cfClientSecret: String = "",
     // MQTT
     val brokerHost: String = "",
     val port: String = "1883",
@@ -87,10 +95,12 @@ class DestinationEditViewModel @Inject constructor(
             DestinationType.WEBHOOK -> {
                 val c = DestinationJson.decodeFromString(WebhookConfig.serializer(), d.config)
                 base.copy(url = c.url, method = c.method, bodyTemplate = c.bodyTemplate.orEmpty())
+                    .withAuth(id, c.authType)
             }
             DestinationType.API -> {
                 val c = DestinationJson.decodeFromString(ApiConfig.serializer(), d.config)
                 base.copy(url = c.url, method = c.method, bodyTemplate = c.bodyTemplate.orEmpty())
+                    .withAuth(id, c.authType)
             }
             DestinationType.MQTT -> {
                 val c = DestinationJson.decodeFromString(MqttConfig.serializer(), d.config)
@@ -109,17 +119,27 @@ class DestinationEditViewModel @Inject constructor(
         }
     }
 
+    /** Loads HTTP auth scheme + its secrets into the form. */
+    private fun DestinationForm.withAuth(id: Long, authType: AuthType) = copy(
+        authType = authType,
+        authUsername = securePrefs.getSecret(id, HttpAuth.FIELD_USERNAME).orEmpty(),
+        authPassword = securePrefs.getSecret(id, HttpAuth.FIELD_PASSWORD).orEmpty(),
+        authToken = securePrefs.getSecret(id, HttpAuth.FIELD_TOKEN).orEmpty(),
+        cfClientId = securePrefs.getSecret(id, HttpAuth.FIELD_CF_ID).orEmpty(),
+        cfClientSecret = securePrefs.getSecret(id, HttpAuth.FIELD_CF_SECRET).orEmpty(),
+    )
+
     /** Persists the destination and its secrets, returning the saved row (with id). */
     private suspend fun persist(): Destination {
         val f = _form.value
         val config = when (f.type) {
             DestinationType.WEBHOOK -> DestinationJson.encodeToString(
                 WebhookConfig.serializer(),
-                WebhookConfig(f.url.trim(), f.method.trim().uppercase(), f.bodyTemplate.ifBlank { null }),
+                WebhookConfig(f.url.trim(), f.method.trim().uppercase(), f.bodyTemplate.ifBlank { null }, f.authType),
             )
             DestinationType.API -> DestinationJson.encodeToString(
                 ApiConfig.serializer(),
-                ApiConfig(f.url.trim(), f.method.trim().uppercase(), f.bodyTemplate.ifBlank { null }),
+                ApiConfig(f.url.trim(), f.method.trim().uppercase(), f.bodyTemplate.ifBlank { null }, f.authType),
             )
             DestinationType.MQTT -> DestinationJson.encodeToString(
                 MqttConfig.serializer(),
@@ -145,8 +165,22 @@ class DestinationEditViewModel @Inject constructor(
         if (f.type == DestinationType.MQTT) {
             securePrefs.putSecret(id, MqttDispatcher.FIELD_USERNAME, f.username.trim().ifBlank { null })
             securePrefs.putSecret(id, MqttDispatcher.FIELD_PASSWORD, f.password.ifBlank { null })
+        } else {
+            persistAuthSecrets(id, f)
         }
         return repository.destination(id)!!
+    }
+
+    /** Write the selected scheme's credentials; clear the others so stale secrets don't linger. */
+    private fun persistAuthSecrets(id: Long, f: DestinationForm) {
+        val basic = f.authType == AuthType.BASIC
+        val token = f.authType == AuthType.TOKEN
+        val cf = f.authType == AuthType.CLOUDFLARE
+        securePrefs.putSecret(id, HttpAuth.FIELD_USERNAME, f.authUsername.trim().takeIf { basic && it.isNotBlank() })
+        securePrefs.putSecret(id, HttpAuth.FIELD_PASSWORD, f.authPassword.takeIf { basic && it.isNotBlank() })
+        securePrefs.putSecret(id, HttpAuth.FIELD_TOKEN, f.authToken.trim().takeIf { token && it.isNotBlank() })
+        securePrefs.putSecret(id, HttpAuth.FIELD_CF_ID, f.cfClientId.trim().takeIf { cf && it.isNotBlank() })
+        securePrefs.putSecret(id, HttpAuth.FIELD_CF_SECRET, f.cfClientSecret.takeIf { cf && it.isNotBlank() })
     }
 
     fun save(onSaved: () -> Unit) {
