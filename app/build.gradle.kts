@@ -138,6 +138,7 @@ dependencies {
     implementation(libs.libphonenumber)
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.security.crypto)
+    implementation(libs.androidx.datastore.preferences)
 
     testImplementation(libs.junit)
     testImplementation(libs.okhttp.mockwebserver)
